@@ -32,26 +32,15 @@ FL_counties <- subset(counties, region == "florida")
 
 Florida_merged <- inner_join(FloridaDemographics, FL_counties, by = "County")
 
-## Looking at the data, it appears Miami-Dade County did not merge. The Fl_counties data was "Miami-dade County" while the FloridaDemographics
-## was "Miami-Dade County"
+## Looking at the data, it appears Miami-Dade County did not merge. The Fl_counties data was "Miami-dade County"
+## while the FloridaDemographics was "Miami-Dade County"
 
-## Let me see if there are any other Counties that did not merged. I can check this by looking at the "Rank" variable in the new merged data.
+## Let me see if there are any other Counties that did not merged. I can check this by looking at the "Rank"
+## variable in the new merged data.
 
 unique(Florida_merged$Rank)
 
 ## Counties with Ranks 21, 24, and 48 were also not merged.
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
