@@ -1,0 +1,146 @@
+---
+title: "Florida Populations by County"
+output: html_document
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("C:/Users/yungz/Desktop/Florida_new")
+```
+
+#### For work I have been looking at some counties in Florida. I thought it would be cool to look at some population data and then map them by county.
+
+```{r warning=FALSE, message=FALSE}
+library(tidyverse)
+library(rvest)
+```
+
+##### I am going to scrap some data from a website that has the population for each county in Florida.
+
+```{r}
+url <- "https://www.florida-demographics.com/counties_by_population"
+h <- read_html(url)
+tab <- h %>% html_nodes("table")
+tab <- tab %>% html_table
+FloridaDemographics <- as.data.frame(tab)
+```
+
+
+##### Converting character columns to numeric
+
+```{r}
+FloridaDemographics$Rank <- as.numeric(FloridaDemographics$Rank)
+FloridaDemographics$Population <- parse_number(FloridaDemographics$Population)
+```
+
+##### Removing the last row because it is needless text
+
+```{r}
+FloridaDemographics <- FloridaDemographics[-c(68),]
+```
+
+##### Loading the packages I need and getting the Florida Longitude and Latitude data
+```{r, warning=FALSE, message=FALSE}
+library(maps)
+library(ggmap)
+library(mapdata)
+```
+
+##### The map_data in ggplot2 has longitude and latitude data.
+
+```{r, warning=FALSE, message=FALSE}
+states <- map_data("state")
+FL_df <- subset(states, region == "florida")
+counties <- map_data("county")
+FL_counties <- subset(counties, region == "florida")
+```
+
+##### Eventually I'll have to merge FloridaDemographics and Fl_counties, but I need something to match them by. Let me see what they share.
+
+```{r}
+head(FloridaDemographics)
+unique(FL_counties$subregion)
+```
+
+#### The "subregion" column corresponds with the county name, but it is not capitalized and does not have "County" at the end like the FloridaDemographics. So, within the Fl_counties dataframe, I'm going to create a replicate column of subregion that I will use to match the format of the other dataframe. I'll call it "County." Then I'll paste "County" to the end of each value in the new column.
+
+```{r}
+FL_counties$county <- FL_counties$subregion
+FL_counties$county <- paste(FL_counties$county, "County" )   
+```
+
+##### But the first letter is still not capitalized. I'll create a functions called "simplecap" that capitalizes the first letter, and then apply the function over each value. Third, I'll change the column name using the colnames function.
+
+```{r}
+simpleCap <- function(x) {
+  s <- strsplit(x, " ")[[1]]
+  paste(toupper(substring(s, 1,1)), substring(s, 2),
+        sep="", collapse=" ")
+}
+
+FL_counties$county <- sapply(FL_counties$county, simpleCap)
+colnames(FL_counties)[7] <- "County"
+```
+
+##### Merging the Long and Lat data with the demographics by the "County" column in each dataframe.
+
+```{r}
+Florida_merged <- inner_join(FloridaDemographics, FL_counties, by = "County")
+```
+
+##### Looking at the data, it appears Miami-Dade County did not merge. The Fl_counties data was "Miami-dade County" while the FloridaDemographics was "Miami-Dade County." Let me see if there are any other Counties that did not merged. I can check this by looking at the "Rank" variable in the new merged data.
+
+```{r}
+unique(Florida_merged$Rank)
+```
+
+##### Counties with Ranks 21, 24, and 48 were also not merged. What are the names for each county?
+
+```{r}
+FloridaDemographics
+```
+
+##### The counties are St. Lucie, St. Johns, and DeSoto. I will change the spelling of the counties in the the Fl_counties dataframe so they match the spelling of the counties I scraped from the web
+
+```{r}
+FL_counties$County[FL_counties$County == "Miami-dade County"] <- "Miami-Dade County"
+FL_counties$County[FL_counties$County == "St Lucie County"] <- "St. Lucie County"
+FL_counties$County[FL_counties$County == "St Johns County"] <- "St. Johns County"
+FL_counties$County[FL_counties$County == "De Soto County"] <- "DeSoto County"
+```
+
+##### Now that Fl_counties has the same names, I can redo the inner join. Then I'll check to make sure there are 67 unique ranks (1 for each county).
+
+```{r}
+Florida_merged <- inner_join(FloridaDemographics, FL_counties, by = "County")
+length(unique(Florida_merged$Rank))
+```
+
+##### Time to plot. First let me create the base map.
+
+```{r}
+Fl_base <- ggplot(data = Florida_merged, mapping = aes(x = long, y = lat, group = group))+
+  coord_fixed(1.3)+
+  geom_polygon(color = "black", fill = "gray")
+```
+
+##### Now I will use geom_polygon and fill the map with populations for each county.
+
+```{r}
+Fl_base +
+  geom_polygon(aes(fill = Population), color = "white")
+```
+
+##### This map legend uses scientific notation, and I want to create more breaks in the legend. So I'll load the scales package and use the labels function. I'll also create some breaks for the population range.
+
+```{r warning=FALSE, message=FALSE}
+library(scales)
+```
+
+```{r}
+Fl_base +
+  geom_polygon(aes(fill = Population), color = "white")+
+  scale_fill_gradient(labels = comma, breaks = c(0, 500000, 1000000, 1500000, 2000000, 2500000, 3000000))
+```
+
+
